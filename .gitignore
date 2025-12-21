@@ -1,0 +1,16 @@
+# Keil MDK ignore files
+*.o
+*.d
+*.crf
+*.dep
+*.axf
+*.htm
+*.lnp
+*.sct
+*.lst
+*.map
+*.iex
+*.build_log.htm
+Objects/
+Listings/
+RTE/
