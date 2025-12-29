@@ -59,6 +59,5 @@
 
 代码更新后（将原代码分割成几个子文件，便于调节参数），视频展示如下:
 <video width="100%" controls>
-  <source src="https://github.com/Witylk/RadarDataAcquisitionApp/blob/main/Assets/demo_video.mp4">
+  <source src="https://github.com/Witylk/RadarDataAcquisitionApp/raw/main/Assets/demo_video.mp4" type="video/mp4">
 </video>
-
