@@ -1,5 +1,4 @@
 
-https://github.com/user-attachments/assets/6fdb70b1-9601-41d4-88be-27595d223392
 # 基于 FMCW 雷达的非接触式生命体征监测系统 
 
 本项目实现了一套**非接触式（Non-contact）**的生理信号监测系统。通过毫米波雷达采集人体胸腔微动信号，利用 MATLAB 上位机进行实时信号处理，成功分离出**呼吸（Respiration）**和**心跳（Heartbeat）**波形，并实时计算呼吸率（RPM）和心率（BPM）。
