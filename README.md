@@ -58,5 +58,5 @@
 ![生命体征监测界面 - 稳定测量时](Assets/demo_picture2.png)
 
 代码更新后（将原代码分割成几个子文件，便于调节参数），视频展示如下:
-
+![](Assets/demo_video.mp4)
 
