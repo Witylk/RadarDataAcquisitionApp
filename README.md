@@ -51,12 +51,13 @@
 ## 4. 运行效果展示
 ### 1. MATLAB代码功能实现（当把开发板放在胸腔0.5m左右时且测量稳定时）
 
-![生命体征监测界面 - 稳定测量时](Assets/demo1.png)
+![生命体征监测界面 - 稳定测量时](Assets/demo_picture1.png)
 
 ### 2. MATLAB代码功能实现（当把雷达放进盒子且测量稳定时)
 
-![生命体征监测界面 - 稳定测量时](Assets/demo2.png)
+![生命体征监测界面 - 稳定测量时](Assets/demo_picture2.png)
 
 代码更新后（将原代码分割成几个子文件，便于调节参数），视频展示如下:
 
+https://github.com/user-attachments/assets/64e1b53d-0e9a-41c5-b2b4-c402501811a8
 
