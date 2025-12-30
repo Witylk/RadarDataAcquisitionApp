@@ -6,7 +6,9 @@ classdef RunSystem < handle
         Timer       % 定时器
         IsRunning = false
         
-        SavedData   % 数据缓存
+        % 录制相关
+        IsRecording = false % 是否正在录制
+        RecordingData       % 专门用于存储录制片段的数据
     end
     
     methods
@@ -16,12 +18,15 @@ classdef RunSystem < handle
             obj.Processor = core.Processor();
             obj.Driver = core.SerialDriver();
             
-            obj.initSaveData();
+            % 初始化录制缓存
+            obj.initRecordingData();
             
-            % 2. 绑定回调 (映射原代码逻辑)
+            % 2. 绑定回调
             obj.View.btnOpenPort.ButtonPushedFcn = @obj.onOpenPort;
             obj.View.btnStartAcq.ButtonPushedFcn = @obj.onStartStop;
-            obj.View.btnSaveData.ButtonPushedFcn = @obj.onSaveData;
+            
+            % 【改动】绑定保存按钮到新的 Toggle 逻辑
+            obj.View.btnSaveData.ButtonPushedFcn = @obj.onToggleSave;
             
             obj.View.efWindowLen.ValueChangedFcn = @obj.onWindowLenChanged;
             obj.View.spWindowLen.ValueChangedFcn = @obj.onWindowLenChanged;
@@ -32,12 +37,12 @@ classdef RunSystem < handle
             obj.View.UIFigure.CloseRequestFcn = @obj.onClose;
         end
         
-        function initSaveData(obj)
-            obj.SavedData = struct();
-            obj.SavedData.timestamps = datetime.empty(0,1);
-            obj.SavedData.distances = [];
-            obj.SavedData.fft_data = [];
-            obj.SavedData.phase_data = zeros(0, obj.Processor.WindSize);
+        function initRecordingData(obj)
+            obj.RecordingData = struct();
+            obj.RecordingData.timestamps = datetime.empty(0,1);
+            obj.RecordingData.distances = [];
+            obj.RecordingData.fft_data = [];
+            obj.RecordingData.phase_data = zeros(0, obj.Processor.WindSize);
         end
         
         % --- 回调实现 ---
@@ -66,7 +71,9 @@ classdef RunSystem < handle
                 end
                 
                 obj.Processor.init();
-                obj.initSaveData();
+                
+                % 采集开始不代表录制开始，所以这里不重置 RecordingData
+                % 也不设置 IsRecording = true
                 
                 obj.IsRunning = true;
                 obj.View.btnStartAcq.Text = '停止采集';
@@ -82,6 +89,12 @@ classdef RunSystem < handle
         
         function onStop(obj)
             obj.IsRunning = false;
+            
+            % 如果正在录制，强制停止并保存
+            if obj.IsRecording
+                obj.onToggleSave(); 
+            end
+            
             if isvalid(obj.View.UIFigure)
                 obj.View.btnStartAcq.Text = '开始采集';
             end
@@ -94,23 +107,22 @@ classdef RunSystem < handle
             [byte_FFT, ok] = obj.Driver.readFrame();
             if ~ok, return; end
             
-            % 2. 处理数据 (核心算法在 Processor 中，完全未动)
+            % 2. 处理数据
             res = obj.Processor.process(byte_FFT);
             
-            % 3. 更新缓存 (用于保存)
-            obj.SavedData.timestamps(end+1) = datetime('now');
-            obj.SavedData.distances(end+1) = res.distance;
-            obj.SavedData.fft_data(end+1, :) = res.data_FFT;
-            
-            % 处理 phase_data 大小
-            current_phase_len = length(res.breath_wave);
-            % 这里需要截断或补零以匹配 savedData 矩阵宽度?
-            % 原代码逻辑：app.savedData.phase_data(end+1, 1:length(phase_breath_filtered)) = phase_breath_filtered;
-            % 且之前做了 zeros 预分配。
-            if size(obj.SavedData.phase_data, 2) ~= current_phase_len
-                 % 如果窗口变化了，这里简单处理
+            % 3. 【核心改动】仅在录制状态下保存数据
+            if obj.IsRecording
+                obj.RecordingData.timestamps(end+1) = datetime('now');
+                obj.RecordingData.distances(end+1) = res.distance;
+                obj.RecordingData.fft_data(end+1, :) = res.data_FFT;
+                
+                % 简单处理相位数据尺寸匹配问题
+                if size(obj.RecordingData.phase_data, 2) ~= length(res.breath_wave)
+                     % 如果窗口变了，不做复杂处理，直接忽略或截断，防止报错
+                else
+                    obj.RecordingData.phase_data(end+1, :) = res.breath_wave;
+                end
             end
-            obj.SavedData.phase_data(end+1, :) = res.breath_wave;
             
             % 4. 更新 UI
             obj.View.lblPosition.Text = sprintf('%.1f', res.distance * 100);
@@ -140,33 +152,66 @@ classdef RunSystem < handle
             
             if obj.IsRunning
                 obj.Processor.updateWindow(newLen);
-                
-                % 调整保存数据大小 (原代码逻辑)
-                old_phase = obj.SavedData.phase_data;
-                new_size = obj.Processor.WindSize;
-                obj.SavedData.phase_data = zeros(size(old_phase,1), new_size);
-                cols = min(size(old_phase,2), new_size);
-                obj.SavedData.phase_data(:, 1:cols) = old_phase(:, 1:cols);
-                
                 xlim(obj.View.axTimeWaveform, [0 newLen]);
                 xlim(obj.View.axHeartWaveform, [0 newLen]);
+                
+                % 如果正在录制，改变窗长可能会导致 phase_data 维度不一致
+                % 建议停止录制或重置 buffer，这里简单处理：重置录制buffer以防报错
+                if obj.IsRecording
+                    uialert(obj.View.UIFigure, '录制中改变窗长，录制已重置！', '警告');
+                    obj.initRecordingData();
+                end
             end
         end
         
-        function onSaveData(obj, ~, ~)
-            try
-                filename = obj.View.efFileName.Value;
-                if ~endsWith(filename, '.mat'), filename = [filename, '.mat']; end
+        % --- 【新功能】开始/停止保存 ---
+        function onToggleSave(obj, ~, ~)
+            if ~obj.IsRecording
+                % === 开始录制 ===
+                obj.IsRecording = true;
+                obj.View.btnSaveData.Text = '结束保存';
+                obj.View.btnSaveData.BackgroundColor = [1 0.6 0.6]; % 变红提示
                 
-                data = obj.SavedData;
+                % 清空缓存，准备开始记录新的一段
+                obj.initRecordingData();
+                % 确保 phase_data 宽度匹配当前 Processor 设置
+                obj.RecordingData.phase_data = zeros(0, obj.Processor.WindSize);
+                
+                % 提示
+                disp('开始录制数据...');
+            else
+                % === 停止录制并保存 ===
+                obj.IsRecording = false;
+                obj.View.btnSaveData.Text = '开始保存';
+                obj.View.btnSaveData.BackgroundColor = [0.96 0.96 0.96]; % 恢复颜色
+                
+                % 执行保存
+                obj.saveToFile();
+                disp('录制结束并保存。');
+            end
+        end
+        
+        function saveToFile(obj)
+            try
+                fname = obj.View.efFileName.Value;
+                if ~endsWith(fname, '.mat'), fname = [fname, '.mat']; end
+                
+                data = obj.RecordingData;
+                
+                % 如果没录到数据
+                if isempty(data.timestamps)
+                    uialert(obj.View.UIFigure, '没有录制到任何数据', '提示');
+                    return; 
+                end
+                
                 data.label = obj.View.efLabel.Value;
                 data.parameters.FS = obj.Processor.FS;
                 data.parameters.Rres = obj.Processor.Rres;
                 data.parameters.WindSize = obj.Processor.WindSize;
                 data.parameters.Range = obj.Processor.Range;
                 
-                save(filename, 'data');
-                uialert(obj.View.UIFigure, ['保存成功: ' filename], '成功', 'Icon', 'success');
+                save(fname, 'data');
+                uialert(obj.View.UIFigure, ['成功保存 ' num2str(length(data.timestamps)) ' 帧数据到: ' fname], '成功', 'Icon', 'success');
             catch ME
                 uialert(obj.View.UIFigure, ['保存失败: ' ME.message], '错误', 'Icon', 'error');
             end

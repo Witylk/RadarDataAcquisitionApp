@@ -22,10 +22,9 @@ classdef MainView < handle
         end
         
         function createComponents(obj)
-            % 原 createComponents 代码，仅将 app. 替换为 obj.
             obj.UIFigure = uifigure('Visible', 'off');
             obj.UIFigure.Position = [100 50 1200 750];
-            obj.UIFigure.Name = 'MATLAB App';
+            obj.UIFigure.Name = 'Radar Data Acquisition';
             
             obj.TabGroup = uitabgroup(obj.UIFigure);
             obj.TabGroup.Position = [10 10 1180 730];
@@ -70,9 +69,12 @@ classdef MainView < handle
             obj.efFileName = uieditfield(obj.LeftPanel, 'text');
             obj.efFileName.Position = [110 520 150 22];
             obj.efFileName.Value = '1.mat';
+            
+            % === 修改点：按钮变宽，文字改为"开始保存" ===
             obj.btnSaveData = uibutton(obj.LeftPanel, 'push');
-            obj.btnSaveData.Position = [270 520 50 22];
-            obj.btnSaveData.Text = '保存';
+            obj.btnSaveData.Position = [270 520 80 22]; % 宽度从50改为80
+            obj.btnSaveData.Text = '开始保存';
+            % ===========================================
             
             obj.lblLabel = uilabel(obj.LeftPanel);
             obj.lblLabel.Position = [20 480 80 20];
